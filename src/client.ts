@@ -1,4 +1,9 @@
+import { PaymentsResource } from './resources/payments';
+
 export class OpenPaymentsClient {
-  constructor(apiKey: string) {}
-  async createPayment() { return true; }
+  public payments: PaymentsResource;
+
+  constructor(private apiKey: string, private baseUrl: string) {
+    this.payments = new PaymentsResource(this);
+  }
 }
