@@ -1,3 +1,5 @@
+// Payments resource — handles payment creation and management
+
 import { OpenPaymentsClient } from '../client';
 import { PaymentRequest, PaymentResponse } from '../types';
 
