@@ -9,4 +9,12 @@ module.exports = {
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts'],
+  coverageThreshold: {
+    global: {
+      lines: 80,
+      functions: 80,
+      branches: 80,
+      statements: 80,
+    },
+  },
 };
