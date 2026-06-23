@@ -19,3 +19,4 @@
 - [2026-05-21T10:00:00] chore: clean up dead code and unused files
 - [2026-05-25T10:00:00] feat: final polish for initial beta release
 - [2026-06-19T10:00:00] feat: implement webhook listener for tracking incoming payments
+- [2026-06-23T10:00:00] feat: implement plugin system for custom payment workflows (#72b)
