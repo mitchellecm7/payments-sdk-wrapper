@@ -6,6 +6,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { OpenPaymentsClient } from '../client';
 import { ValidationError } from '../errors';
+import { PluginRegistry } from '../plugins/registry';
 import { PaymentRequest, PaymentResponse, BatchPaymentResponse } from '../types';
 import { validatePaymentRequest } from '../validation';
 
@@ -14,10 +15,19 @@ const TX_TIMEOUT_SECONDS = 30;
 const MAX_OPERATIONS = 100;
 
 export class PaymentsResource {
-  constructor(private client: OpenPaymentsClient) {}
+  constructor(
+    private client: OpenPaymentsClient,
+    private plugins: PluginRegistry = new PluginRegistry(),
+  ) {}
 
   async create(payload: PaymentRequest): Promise<PaymentResponse> {
     validatePaymentRequest(payload);
+
+    const context = { request: { ...payload } };
+
+    // ── beforePayment ─────────────────────────────────────────────────────────
+    // Any plugin can abort the payment by throwing here.
+    await this.plugins.runBeforePayment(context);
 
     const secretKey = payload.senderSecretKey ?? this.client.senderSecretKey;
     if (!secretKey) {
@@ -52,13 +62,26 @@ export class PaymentsResource {
 
     transaction.sign(senderKeypair);
 
-    const result = await this.client.server.submitTransaction(transaction);
+    let result: { hash: string };
+    try {
+      result = await this.client.server.submitTransaction(transaction);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      // ── onError ─────────────────────────────────────────────────────────────
+      await this.plugins.runOnError({ ...context, error });
+      throw error;
+    }
 
-    return {
+    const response: PaymentResponse = {
       id: result.hash,
       status: 'completed',
       hash: result.hash,
     };
+
+    // ── onSuccess ────────────────────────────────────────────────────────────
+    await this.plugins.runOnSuccess({ ...context, response });
+
+    return response;
   }
 
   async submitBatchedPayments(paymentsArray: PaymentRequest[]): Promise<BatchPaymentResponse> {
@@ -83,6 +106,21 @@ export class PaymentsResource {
         );
       }
     }
+
+    // For batch payments we synthesise a single context that covers the whole
+    // batch. Individual per-payment plugin hooks are not run here because the
+    // batch is submitted as a single atomic Stellar transaction.
+    const batchContext = {
+      request: {
+        amount: 0,
+        currency: 'BATCH',
+        destination: '',
+        batch: paymentsArray,
+      },
+    };
+
+    // ── beforePayment ─────────────────────────────────────────────────────────
+    await this.plugins.runBeforePayment(batchContext);
 
     const sourceKeypair = Keypair.fromSecret(secretKey);
     const sourceAccount = await this.client.server.loadAccount(sourceKeypair.publicKey());
@@ -110,11 +148,27 @@ export class PaymentsResource {
     const tx = builder.setTimeout(TX_TIMEOUT_SECONDS).build();
     tx.sign(sourceKeypair);
 
-    const result = await this.client.server.submitTransaction(tx);
+    let result: { hash: string };
+    try {
+      result = await this.client.server.submitTransaction(tx);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      // ── onError ─────────────────────────────────────────────────────────────
+      await this.plugins.runOnError({ ...batchContext, error });
+      throw error;
+    }
 
-    return {
+    const batchResponse: BatchPaymentResponse = {
       transactionHash: result.hash,
       operationCount: paymentsArray.length,
     };
+
+    // ── onSuccess ────────────────────────────────────────────────────────────
+    await this.plugins.runOnSuccess({
+      request: batchContext.request,
+      response: { id: result.hash, status: 'completed', hash: result.hash },
+    });
+
+    return batchResponse;
   }
 }

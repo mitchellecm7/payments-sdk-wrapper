@@ -67,7 +67,7 @@ describe('PaymentsResource', () => {
     const submitTransaction = jest.fn(async (transaction: any) => {
       expect(transaction.operations[0].asset.isNative()).toBe(false);
       expect(transaction.operations[0].asset.getCode()).toBe('USDC');
-      expect(transaction.operations[0].amount).toBe('25');
+      expect(transaction.operations[0].amount).toBe('25.0000000');
       return { hash: 'custom-asset-hash' };
     });
 
