@@ -1,5 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest';
-import { CircuitBreaker, CircuitState } from '../src/circuit';
+﻿import { CircuitBreaker, CircuitState } from '../src/circuit';
 
 describe('CircuitBreaker', () => {
   it('should start in CLOSED state', () => {
